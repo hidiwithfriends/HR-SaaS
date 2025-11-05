@@ -53,6 +53,14 @@ Claude는 코드를 변경하기 전에 항상 관련 문서를 우선 확인해
   - 전체 UX 플로우 (예: 회원가입 → 온보딩 → 핵심 화면).
 - `docs/ux/screens-wireframes.md`
   - 화면별 구조/요소 설명, 와이어프레임 링크 등.
+- `docs/ux/ui-theme.md`
+  - 컬러, 타이포, 여백, 톤 앤 매너 등 UI 테마 가이드.
+- `docs/ux/design-system.md`
+  - 공통 UI 컴포넌트와 화면 패턴을 정의한다.
+
+> UI 구현 시 기본 컴포넌트는 **shadcn/ui** 패턴을 따르고,  
+> 색/타이포/레이아웃 토큰은 `docs/ux/ui-theme.md`에 정의된  
+> **tweakcn 기반 테마**를 우선으로 사용한다.
 
 ### 1.3 기술(Tech) 문서
 
