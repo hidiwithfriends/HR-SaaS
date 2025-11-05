@@ -45,12 +45,12 @@ test.describe('Authentication Flow', () => {
     // Step 5: Redirect to dashboard
     await expect(page).toHaveURL('/dashboard');
     await expect(page.locator('h1')).toContainText('대시보드');
-    await expect(page.locator('text=환영합니다')).toBeVisible();
+    await expect(page.locator('h2:has-text("환영합니다")')).toBeVisible();
 
     // Verify dashboard elements
     await expect(page.locator('text=오늘의 근무 현황')).toBeVisible();
     await expect(page.locator('text=이번 주 인건비')).toBeVisible();
-    await expect(page.locator('text=직원 초대하기')).toBeVisible();
+    await expect(page.locator('button:has-text("직원 초대하기")')).toBeVisible();
   });
 
   test('[UX-1.1-Error] Signup with invalid data shows errors', async ({ page }) => {

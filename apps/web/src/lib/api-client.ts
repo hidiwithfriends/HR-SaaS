@@ -43,16 +43,16 @@ apiClient.interceptors.response.use(
             return apiClient.request(error.config);
           }
         } catch (refreshError) {
-          // Refresh failed, redirect to login
+          // Refresh failed, redirect to login (only if not already on login page)
           Cookies.remove('accessToken');
           Cookies.remove('refreshToken');
-          if (typeof window !== 'undefined') {
+          if (typeof window !== 'undefined' && !window.location.pathname.includes('/auth/login')) {
             window.location.href = '/auth/login';
           }
         }
       } else {
-        // No refresh token, redirect to login
-        if (typeof window !== 'undefined') {
+        // No refresh token, redirect to login (only if not already on login page)
+        if (typeof window !== 'undefined' && !window.location.pathname.includes('/auth/login')) {
           window.location.href = '/auth/login';
         }
       }
