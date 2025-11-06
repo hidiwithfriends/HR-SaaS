@@ -63,7 +63,7 @@
 
 ---
 
-## F1. 인증 & 유저 관리
+## F1. 인증 & 유저 관리 (2.4주) [status: completed]
 
 ### 관련 스펙 문서
 - **PRD:** `docs/product/prd-main.md` - M1 (회원가입 & 인증)
@@ -228,7 +228,7 @@
 
 ---
 
-## F2. 매장 & 직원 관리
+## F2. 매장 & 직원 관리 (2.1주) [status: completed] [completed: 2025-11-06]
 
 ### 관련 스펙 문서
 - **PRD:** `docs/product/prd-main.md` - M1 (회원가입), US-01 관련
@@ -358,7 +358,7 @@
 
 ---
 
-## F3. 5분 매뉴얼 (핵심 기능 1)
+## F3. 5분 매뉴얼 (4.2주) [status: todo]
 
 ### 관련 스펙 문서
 - **PRD:** `docs/product/prd-main.md` - M2 (5분 매뉴얼), US-01, US-05
@@ -493,7 +493,7 @@
 
 ---
 
-## F4. 출퇴근 기록 (핵심 기능 2)
+## F4. 출퇴근 기록 (3.3주) [status: todo]
 
 ### 관련 스펙 문서
 - **PRD:** `docs/product/prd-main.md` - M3 (기본 근태 관리), US-06
