@@ -110,13 +110,52 @@ Claude는 코드를 변경하기 전에 항상 관련 문서를 우선 확인해
 - `docs/legal/terms-of-service.md`
 - `docs/legal/privacy-policy.md`
 
+### 1.6 프로젝트 관리 문서
+
+- `docs/project/roadmap.md`
+  - 전체 Phase 개요 (Phase 1~N)
+  - 각 Phase별 목표, 기간, 주요 기능 목록
+  - Phase 간 의존성 및 주요 마일스톤
+  - 리스크 & 완화 전략
+
+- `docs/project/phase<N>-plan.md`
+  - 해당 Phase의 Feature별 상세 실행 계획
+  - 각 Feature는 4단계 구현 절차를 따른다:
+    1. **Step 1: UX Planning & Design**
+       - `docs/ux/ux-flow-main.md` 사용자 여정 정의
+       - `docs/ux/screens-wireframes.md` 화면 와이어프레임 작성
+       - AC 매핑 확인
+    2. **Step 2: Frontend Prototype with Mock Data**
+       - Mock 데이터 생성
+       - Next.js 페이지/컴포넌트 구현 (shadcn/ui)
+       - Playwright E2E 테스트 작성
+    3. **Step 3: Data Layer Design & Migration**
+       - TypeORM Entity 작성
+       - Migration 파일 생성 및 실행
+       - DB 스키마 검증
+    4. **Step 4: Backend API & Integration**
+       - NestJS Controller/Service 구현
+       - API E2E 테스트 작성
+       - Frontend Mock → Real API 전환
+       - 통합 테스트 실행
+  - 각 Feature 헤더는 다음 형식을 따른다:
+    - `## F1: 인증 & 유저 관리 (2.4주) [status: todo]`
+    - `## F2: 매장 관리 (2.1주) [status: in_progress]`
+    - `## F3: 매뉴얼 관리 (4.2주) [status: completed]`
+  - status 값: `todo`, `in_progress`, `completed`
+
+> ⚠ Phase 계획 문서 작성 시점:
+> - **Phase 1**: 프로젝트 시작 시 roadmap.md와 함께 생성
+> - **Phase 2+**: 이전 Phase 완료 직전에 상세 계획 작성
+> - 각 Phase는 이전 Phase의 Feature가 모두 `completed` 상태일 때 시작
+
 ---
 
 ## 2. Claude의 기본 작업 원칙
 
 Claude는 이 리포지토리에서 어떤 작업이든 다음 원칙을 따른다.
 
-### 2.1 “문서 → Plan → 테스트 → 코드” 순서
+### 2.1 "문서 → Plan → TDD 사이클" 순서
 
 1. **먼저 문서 읽기**
    - 관련된 PRD / Feature Spec / Tech Spec / API / DB / 테스트 문서를 찾아 읽는다.
@@ -125,8 +164,14 @@ Claude는 이 리포지토리에서 어떤 작업이든 다음 원칙을 따른�
      - 변경 요약
      - 영향을 받는 모듈/파일/문서
      - 구현 단계 (Step 1, 2, 3…)
-3. **사용자 동의 후 실행**
-   - Plan에 대해 사용자가 “OK” 하기 전에는
+3. **TDD(Test-Driven Development) 사이클 적용**
+   - 모든 기능 구현은 **Red-Green-Refactor 사이클**을 따른다:
+     - 🔴 **RED**: 실패하는 테스트를 먼저 작성하고 실행하여 실패 확인
+     - 🟢 **GREEN**: 테스트를 통과시키는 최소한의 코드 작성
+     - 🔵 **REFACTOR**: 테스트는 그대로 두고 코드 품질 개선
+   - 상세한 TDD 가이드는 `docs/qa/test-strategy.md` 참조
+4. **사용자 동의 후 실행**
+   - Plan에 대해 사용자가 "OK" 하기 전에는
      - 대규모 리팩터링
      - 마이그레이션
      - 중요한 구조 변경
@@ -136,74 +181,278 @@ Claude는 이 리포지토리에서 어떤 작업이든 다음 원칙을 따른�
 
 - PRD / Feature Spec / Tech Spec과 코드가 충돌할 경우:
   - 코드를 마음대로 바꾸지 말고,
-  - “어느 부분의 스펙이 현실과 안 맞는지”를 설명하고,
+  - "어느 부분의 스펙이 현실과 안 맞는지"를 설명하고,
   - 스펙 수정 제안을 먼저 한 뒤, 사용자 동의를 얻고 코드를 변경한다.
+
+### 2.3 작업 시작 전 프로젝트 진행 상황 확인
+
+Claude는 새로운 세션을 시작하거나 작업을 시작하기 전에,
+항상 **현재 프로젝트 진행 상황을 먼저 확인**해야 한다.
+
+1. **세션 시작 시:**
+   - `/next` 커맨드를 실행하여 현재 Phase/Feature 상태를 파악한다.
+   - project-progress 스킬이 roadmap.md와 phaseN-plan.md를 분석하여
+     다음 작업을 추천해준다.
+
+2. **작업 선택:**
+   - 사용자가 명시적으로 다른 작업을 요청하지 않는 한,
+     project-progress가 추천한 작업을 우선적으로 진행한다.
+   - 추천된 작업의 Step (1~4) 순서를 따라 진행한다.
+
+3. **작업 완료 후:**
+   - Feature의 Step을 완료했을 때, phaseN-plan.md의 해당 Feature 상태를 업데이트한다.
+   - Feature 전체가 완료되면 `[status: completed]`로 변경한다.
+   - Phase 전체가 완료되면 roadmap.md의 Phase 상태를 `[status: done]`으로 변경한다.
+
+4. **상태 태그 규칙:**
+   - Feature-level: `[status: todo]`, `[status: in-progress]`, `[status: completed]`
+   - Phase-level: `[status: planned]`, `[status: in-progress]`, `[status: done]`
+
+이 규칙을 통해 Claude는 항상 프로젝트의 현재 위치를 파악하고,
+체계적으로 다음 작업을 진행할 수 있다.
+
+### 2.4 Mock-First 개발 원칙
+
+Claude는 다음 순서로 기능을 개발한다:
+
+1. **UX 설계가 먼저** (Backend 전에 Frontend)
+   - 사용자와 빠르게 검증
+   - 요구사항 변경에 유연하게 대응
+   - 실제 사용자 플로우를 먼저 경험
+
+2. **Mock 데이터로 Frontend 완성**
+   - 백엔드 없이 UI/UX 검증
+   - Playwright로 사용자 플로우 테스트
+   - 디자인 시스템 적용 확인
+
+3. **Mock → Real API 전환 최소화**
+   - API Client 레이어 분리 (`apps/web/lib/api/`)
+   - Mock Provider 패턴 사용
+   - 환경변수로 Mock/Real 전환
+
+4. **Agent 자율 실행 원칙**
+   - Agent는 코드 생성 → 테스트 → 검증까지 자율 수행
+   - Claude는 결과 확인 후 사용자에게 보고
+   - 테스트 실패 시 재시도 전략 적용
+   - **중요**: Agent가 생성한 코드는 사용자 승인 후에만 다음 단계 진행
+
+### 2.5 Command → Skill → Agent 실행 경로
+
+이 프로젝트는 **3계층 실행 구조**를 사용한다:
+
+#### 계층 구조
+1. **Commands** (`.claude/commands/*.md`)
+   - 슬래시 커맨드 (예: `/ux-plan`, `/mock-ui`, `/design-db`, `/implement-api`)
+   - 사용자가 직접 실행하는 진입점
+   - Feature 이름과 번호를 파라미터로 받음
+
+2. **Skills** (`.claude/skills/*/SKILL.md`)
+   - 체크리스트 기반 구현 가이드
+   - 사람이 읽을 수 있는 단계별 설명
+   - 예시 코드와 결정 규칙 포함
+
+3. **Agent Prompts** (`.claude/agents/*.md`)
+   - 완전 자동 실행을 위한 상세 스펙
+   - Phase별 작업 순서, 에러 처리, 검증 로직
+   - 향후 자율 실행용 (현재 미사용)
+
+#### 실행 모드
+
+**현재 (Manual Mode)**:
+```
+사용자: /ux-plan attendance-checkin F4
+  ↓
+Claude: `ux-planning-guide` 스킬 읽기
+  ↓
+Claude: 스킬의 체크리스트를 따라 단계별 실행
+  ↓
+Claude: 각 단계 완료 후 사용자 확인 요청
+```
+
+**향후 (Agent Mode)**:
+```
+사용자: /ux-plan attendance-checkin F4
+  ↓
+Claude: `.claude/agents/step1-ux-planning-agent.md` 읽기
+  ↓
+Claude: Agent Prompt에 따라 완전 자동 실행
+  ↓
+Claude: 최종 결과만 사용자에게 보고
+```
+
+#### Command 파일 구조
+각 Command는 다음 구조를 따른다:
+- **실행 방식**: Manual/Agent Mode 설명
+- **사용 예시**: 파라미터 포함 예시
+- **작업 내용**: Skill 참조 및 단계 목록
+- **완료 조건**: 체크리스트
+
+#### Skill vs Agent Prompt
+- **Skill**: 사람이 읽고 따라 할 수 있는 가이드 (현재 사용)
+- **Agent Prompt**: 기계가 읽고 자동 실행할 수 있는 스펙 (향후 사용)
 
 ---
 
 ## 3. 기능 단위 작업 파이프라인 (Feature Workflow)
 
-**하나의 기능(Feature)** 을 작업할 때 Claude는 반드시 다음 단계를 따른다.
+**하나의 기능(Feature)** 을 작업할 때 Claude는 반드시 다음 4단계를 따른다.
 
-예: “자동 스케줄 생성”, “게시글 작성”, “결제 처리” 등 어떤 도메인에도 공통.
+예: "매장 관리", "근태 체크인", "급여 계산" 등 어떤 도메인에도 공통.
 
-### 3.1 Step 1 – 스펙 확인 및 Acceptance Criteria 추출
+### 3.1 Step 1: UX Planning & Design
 
-1. 관련 Feature 스펙 찾기:
-   - `docs/product/feature-*.md` 중 관련 문서를 찾거나,
-   - 없다면 `docs/product/prd-main.md`에서 해당 기능 부분을 사용.
-2. 문서에서 Acceptance Criteria(AC)를 추출한다.
-   - 예: AC-01, AC-02 식으로 번호를 붙여 정리.
+**목표**: 사용자 여정과 화면 구조를 정의
 
-Claude는 나중 단계에서 **각 AC가 어떤 테스트로 검증되는지** 연결할 것이다.
+**입력 문서**:
+- `docs/business/business-plan.md` - 비즈니스 요구사항
+- `docs/product/prd-main.md` - Acceptance Criteria (AC)
 
-### 3.2 Step 2 – 테스트 설계 & 매핑
+**작성할 문서**:
+- `docs/ux/ux-flow-main.md` - 사용자 여정 (예: 로그인 → 메인 → 상세)
+- `docs/ux/screens-wireframes.md` - 각 화면의 와이어프레임 및 UI 요소
+- `docs/ux/ui-theme.md` - 컬러/타이포/톤앤매너
 
-1. 추출한 AC 목록을 보고, 각 AC를 검증할 테스트를 설계한다.
-2. 테스트 파일 위치/규칙 (추천):
-   - API E2E 테스트:
-     - `tests/api/e2e/<feature-slug>.e2e.test.*`
-   - UI/브라우저 E2E 테스트 (예: Playwright):
-     - `tests/ui/specs/<feature-slug>.spec.*`
-   - 유닛/도메인 테스트:
-     - `tests/unit/<layer>/<logic-name>.test.*`
-3. `docs/qa/test-cases-api.md` / `docs/qa/test-cases-ui.md`에  
-   AC ↔ 테스트 이름 매핑을 추가하도록 사용자에게 제안한다.
-   - 예: AC-01 → `user-auth.e2e.test.ts - should_login_with_valid_credentials`
+**실행 방법**:
+```bash
+/ux-plan <feature-name>
+```
 
-> Claude가 직접 문서를 수정하지 못하는 경우,
-> “이런 식으로 문서를 업데이트하면 좋겠다”라고 제안 설명만 해도 된다.
+**Agent 동작**:
+- `ux-agent` 실행 (general-purpose Agent 사용)
+- 입력 문서 읽기 및 분석
+- 화면 플로우 검증
+- AC와 화면 매핑 확인
+- 완료도 보고서 생성
 
-### 3.3 Step 3 – 테스트 코드 우선 작성
+**완료 조건**:
+- [ ] 모든 화면의 User Journey가 명확히 정의됨
+- [ ] 각 화면의 주요 UI 요소가 나열됨 (버튼, 폼, 테이블 등)
+- [ ] PRD의 AC가 화면에 매핑됨
+- [ ] 사용자가 문서를 검토하고 승인함
 
-구현 코드 전에, 가능한 한 다음 테스트를 먼저 추가한다.
+---
 
-1. API E2E
-   - 성공 케이스
-   - 대표 실패 케이스(권한 없음, 잘못된 입력, 대상 없음 등)
-2. UI E2E
-   - 실제 사용자 플로우(페이지 이동, 입력, 버튼 클릭 등)를 따라가는 시나리오
-3. 유닛/도메인 테스트
-   - 핵심 비즈니스 로직/계산/규칙 부분을 검증하는 테스트
+### 3.2 Step 2: Frontend Prototype with Mock Data
 
-### 3.4 Step 4 – 실제 구현 코드 작성
+**목표**: 실제 동작하는 UI를 Mock 데이터로 구현하고 검증
 
-테스트 준비가 되면 그때부터 실제 코드를 수정한다.
+**입력 문서**:
+- `docs/ux/ux-flow-main.md`
+- `docs/ux/screens-wireframes.md`
+- `docs/ux/ui-theme.md`
 
-- 백엔드: `apps/api/` 또는 해당 백엔드 디렉토리
-- 프론트엔드: `apps/web/` 또는 프론트 디렉토리
-- 공통 모듈: `packages/shared-*` 등
+**자동 생성 파일**:
+- `apps/web/lib/mock/<feature>.ts` - Mock 데이터 (realistic)
+- `apps/web/app/<feature>/page.tsx` - Next.js 14 App Router 페이지
+- `apps/web/components/<feature>/` - UI 컴포넌트 (shadcn/ui)
+- `apps/web/tests/<feature>.spec.ts` - Playwright E2E 테스트
 
-구현 시에는 Plan에서 정의한 순서를 최대한 지키며 작업한다.
+**실행 방법**:
+```bash
+/mock-ui <feature-name>
+```
 
-### 3.5 Step 5 – 테스트 실행 & 실패 처리
+**Agent 동작**:
+- `frontend-agent` 실행
+- UX 문서에서 필요한 데이터 구조 추출
+- Realistic한 Mock 데이터 생성
+- Next.js 페이지/컴포넌트 생성 (shadcn/ui 사용)
+- UI Theme 적용 (컬러, 타이포, 여백)
+- Playwright E2E 테스트 작성
+- `npm run dev` 실행 후 `npx playwright test` 실행
+- 테스트 결과 보고
 
-1. 전체 테스트 실행:
-   - 예: `npm run test-all`, `pnpm test-all`, `./scripts/test-all.sh` 등
-2. 실패가 발생하면 Claude는:
-   - 어떤 테스트가 어떤 AC를 깨고 있는지 설명하고,
-   - 고칠 코드/로직에 대해 작은 Plan을 다시 제안한 뒤,
-   - 수정 후 다시 테스트를 돌리는 순서를 따른다.
+**완료 조건**:
+- [ ] 모든 화면이 브라우저에서 렌더링됨
+- [ ] Mock 데이터로 사용자 플로우 테스트 통과
+- [ ] UI가 `ui-theme.md` 스타일 가이드를 따름
+- [ ] **사용자가 UI를 검토하고 승인함** ← 중요!
+
+---
+
+### 3.3 Step 3: Data Layer Design & Migration
+
+**목표**: Mock 데이터 구조를 분석해서 실제 DB 스키마 생성
+
+**입력 파일**:
+- `apps/web/lib/mock/<feature>.ts` - Mock 데이터
+- `docs/tech/db-schema.md` - 기존 스키마 (있다면)
+
+**자동 생성 파일**:
+- `docs/tech/db-schema.md` - 스키마 문서 업데이트
+- `apps/api/src/entities/<entity>.entity.ts` - TypeORM Entity 클래스
+- `apps/api/src/migrations/<timestamp>-Add<Entity>.ts` - Migration 파일
+
+**실행 방법**:
+```bash
+/design-db <feature-name>
+```
+
+**Agent 동작**:
+- `database-agent` 실행
+- Mock 데이터 구조 분석
+- TypeScript 타입 → PostgreSQL 타입 변환
+- 관계(relation) 추론 (OneToMany, ManyToOne, ManyToMany)
+- TypeORM Entity 작성
+- Migration 파일 생성
+- `npm run migration:run` 실행
+- (향후 MCP 사용) DB 스키마 검증
+
+**완료 조건**:
+- [ ] Entity 클래스 생성됨
+- [ ] Migration 실행 성공
+- [ ] (MCP 구축 후) DB에 테이블 존재 확인
+- [ ] **사용자가 스키마를 검토하고 승인함**
+
+---
+
+### 3.4 Step 4: Backend API & Integration
+
+**목표**: API를 구현하고 Frontend를 Real API에 연결
+
+**입력 문서/파일**:
+- `docs/tech/api-spec.md` - API 명세
+- `apps/api/src/entities/` - Entity 클래스들
+- `apps/web/lib/mock/<feature>.ts` - Frontend 요구사항
+
+**자동 생성 파일**:
+- `apps/api/src/modules/<feature>/<feature>.controller.ts`
+- `apps/api/src/modules/<feature>/<feature>.service.ts`
+- `apps/api/src/modules/<feature>/dto/*.dto.ts` - DTO 클래스
+- `apps/api/test/e2e/<feature>.e2e-spec.ts` - API E2E 테스트
+- `apps/web/lib/api/<feature>-api.ts` - Real API Client
+
+**실행 방법**:
+```bash
+/implement-api <feature-name>
+```
+
+**Agent 동작**:
+- `backend-agent` 실행
+- API 스펙 읽기
+- Controller/Service/DTO 생성
+- API E2E 테스트 작성
+- `npm run test:e2e` 실행 (API 테스트)
+- Frontend API Client 생성
+- Frontend에서 Mock → Real API로 전환
+  - `lib/mock/<feature>.ts` 사용 → `lib/api/<feature>-api.ts` 사용
+- `npx playwright test` 실행 (통합 테스트)
+- 결과 보고
+
+**완료 조건**:
+- [ ] API E2E 테스트 모두 통과
+- [ ] Frontend가 Real API 사용
+- [ ] Playwright 통합 테스트 모두 통과
+- [ ] **사용자가 최종 결과를 확인하고 승인함**
+
+---
+
+### 3.5 Feature 완료 처리
+
+모든 Step이 완료되면:
+1. `docs/project/phase<N>-plan.md`의 Feature 상태를 `[status: completed]`로 변경
+2. Git commit 생성 (사용자 요청 시)
+3. 다음 Feature로 진행
 
 ---
 
@@ -228,23 +477,39 @@ Claude는 나중 단계에서 **각 AC가 어떤 테스트로 검증되는지** 
 
 Claude는 다음 행동을 피해야 한다.
 
+### 5.1 문서 및 프로세스 위반
 - PRD/Tech Spec과 다른 방향으로 **조용히** 코드/아키텍처를 변경하는 것.
 - Acceptance Criteria가 정의되지 않은 기능을 **자기 마음대로** 구현하는 것.
-- 테스트 없이 기능을 추가하거나, 실패하는 테스트를 무시/주석 처리하는 것.
 - 중요한 구조/스키마/인덱스 변경을, Plan/설명 없이 바로 적용하는 것.
 - 보안/권한 관련 로직을, `docs/tech/security-rbac.md`와 다르게 구현하는 것.
+
+### 5.2 TDD 원칙 위반
+- **테스트 없이 기능을 추가하는 것** (RED Phase 생략)
+- **실패하는 테스트를 무시하거나 주석 처리하는 것**
+- **테스트 실패 확인 없이 바로 구현 시작하는 것** (RED → GREEN 단계 건너뛰기)
+- **테스트와 구현을 동시에 작성하는 것** (TDD 순서 무시)
+- **REFACTOR Phase에서 새 기능을 추가하는 것** (리팩터링 ≠ 기능 추가)
+- **리팩터링 중 테스트가 깨졌는데 "나중에 고치자"고 넘어가는 것**
+- **GREEN Phase에서 과도한 최적화나 "미래 대비" 코드를 추가하는 것**
+
+### 5.3 TDD 안티패턴
+- **"일단 구현하고 나중에 테스트 추가"** → 절대 안 됨
+- **"테스트가 너무 어려워서 생략"** → 테스트하기 쉬운 설계로 변경해야 함
+- **"이건 간단해서 테스트 불필요"** → 간단할수록 테스트 작성도 쉬움
+- **"프로토타입이라 테스트 생략"** → 프로토타입도 TDD로 작성하면 더 빠름
 
 ---
 
 ## 6. 한 줄 요약 – 이 레포에서 Claude의 기본 행동 패턴
 
-1. **항상 문서부터 읽는다.**  
-2. **항상 Plan(계획)을 먼저 제안한다.**  
-3. **항상 Acceptance Criteria → 테스트 → 코드 순서로 진행한다.**  
-4. **항상 비즈니스/제품 스펙을 우선으로 삼는다.**  
-5. **큰 변경은 항상 사용자에게 설명하고 동의를 구한 뒤 진행한다.**
+1. **항상 문서부터 읽는다.**
+2. **항상 Plan(계획)을 먼저 제안한다.**
+3. **항상 Red-Green-Refactor 사이클을 따른다.**
+4. **항상 Acceptance Criteria → 실패하는 테스트 → 최소 구현 → 리팩터링 순서로 진행한다.**
+5. **항상 비즈니스/제품 스펙을 우선으로 삼는다.**
+6. **큰 변경은 항상 사용자에게 설명하고 동의를 구한 뒤 진행한다.**
 
-이 규칙을 지키는 것이  
-“사업계획서 → 스펙 → 테스트 → 코드 → 실제 서비스”라는
-spec-driven 파이프라인의 핵심이다.
+이 규칙을 지키는 것이
+"사업계획서 → 스펙 → 테스트(RED) → 구현(GREEN) → 리팩터링(REFACTOR) → 실제 서비스"라는
+**TDD 기반 spec-driven 파이프라인**의 핵심이다.
 
