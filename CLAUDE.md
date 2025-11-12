@@ -119,35 +119,47 @@ Claude는 코드를 변경하기 전에 항상 관련 문서를 우선 확인해
   - 리스크 & 완화 전략
 
 - `docs/project/phase<N>-plan.md`
-  - 해당 Phase의 Feature별 상세 실행 계획
+  - 해당 Phase의 전체 개요 및 Feature 목록
+  - 개발 원칙 (UI-First Mock-Driven Development)
+  - 4단계 프로세스 설명
+  - Feature 간 의존성
+  - 전체 타임라인
+  - 각 Feature의 상세 계획은 `docs/project/features/` 참조
+
+- `docs/project/features/f<N>-<name>.md`
+  - 각 Feature의 상세 실행 계획
   - 각 Feature는 4단계 구현 절차를 따른다:
     1. **Step 1: UX Planning & Design**
-       - `docs/ux/ux-flow-main.md` 사용자 여정 정의
-       - `docs/ux/screens-wireframes.md` 화면 와이어프레임 작성
-       - AC 매핑 확인
-    2. **Step 2: Frontend Prototype with Mock Data**
-       - Mock 데이터 생성
+       - `docs/ux/features/<name>-flow.md` 사용자 여정 정의
+       - `docs/ux/features/<name>-screens.md` 화면 구조 작성
+       - 인터랙션 명세
+       - 관련 Command: `/ux-plan <feature-name> <feature-id>`
+    2. **Step 2: Frontend Prototype with Mock**
+       - Mock 데이터 생성 (`apps/web/lib/mocks/`)
        - Next.js 페이지/컴포넌트 구현 (shadcn/ui)
-       - Playwright E2E 테스트 작성
+       - UI E2E 테스트 작성 (Mock 기반)
+       - 관련 Command: `/mock-ui <feature-name> <feature-id>`
     3. **Step 3: Data Layer Design & Migration**
+       - Mock 데이터 구조 → DB 스키마 변환
        - TypeORM Entity 작성
        - Migration 파일 생성 및 실행
-       - DB 스키마 검증
+       - 관련 Command: `/design-db <feature-name> <feature-id>`
     4. **Step 4: Backend API & Integration**
        - NestJS Controller/Service 구현
        - API E2E 테스트 작성
        - Frontend Mock → Real API 전환
-       - 통합 테스트 실행
+       - UI E2E 테스트 (Real API) 실행
+       - 관련 Command: `/implement-api <feature-name> <feature-id>`
   - 각 Feature 헤더는 다음 형식을 따른다:
-    - `## F1: 인증 & 유저 관리 (2.4주) [status: todo]`
-    - `## F2: 매장 관리 (2.1주) [status: in_progress]`
-    - `## F3: 매뉴얼 관리 (4.2주) [status: completed]`
-  - status 값: `todo`, `in_progress`, `completed`
+    - `# F1: 인증 & 유저 관리`
+    - **Feature ID**, **예상 기간**, **상태** 메타데이터 포함
+    - `[status: todo]`, `[status: in_progress]`, `[status: completed]`
 
 > ⚠ Phase 계획 문서 작성 시점:
 > - **Phase 1**: 프로젝트 시작 시 roadmap.md와 함께 생성
 > - **Phase 2+**: 이전 Phase 완료 직전에 상세 계획 작성
 > - 각 Phase는 이전 Phase의 Feature가 모두 `completed` 상태일 때 시작
+> - Feature별 상세 문서는 `docs/project/features/` 디렉토리에 별도 파일로 관리
 
 ---
 
