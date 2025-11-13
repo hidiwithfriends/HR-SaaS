@@ -6,21 +6,10 @@ import {
   UpdateDateColumn,
   OneToMany,
 } from 'typeorm';
+import { Exclude } from 'class-transformer';
+import { UserRole, UserStatus } from '../common/enums';
 import { Store } from './store.entity';
-
-export enum UserRole {
-  OWNER = 'OWNER',
-  EMPLOYEE = 'EMPLOYEE',
-  MANAGER = 'MANAGER',
-  PARTNER = 'PARTNER',
-  ADMIN = 'ADMIN',
-}
-
-export enum UserStatus {
-  ACTIVE = 'ACTIVE',
-  INACTIVE = 'INACTIVE',
-  SUSPENDED = 'SUSPENDED',
-}
+import { Employee } from './employee.entity';
 
 @Entity('users')
 export class User {
@@ -31,17 +20,19 @@ export class User {
   email: string;
 
   @Column({ type: 'varchar', length: 255, name: 'password_hash' })
+  @Exclude() // AC-F1-07: password_hash는 응답에서 제외
   passwordHash: string;
 
   @Column({ type: 'varchar', length: 100 })
   name: string;
 
   @Column({ type: 'varchar', length: 20, nullable: true })
-  phone: string;
+  phone: string | null;
 
   @Column({
     type: 'enum',
     enum: UserRole,
+    default: UserRole.EMPLOYEE,
   })
   role: UserRole;
 
@@ -60,5 +51,8 @@ export class User {
 
   // Relations
   @OneToMany(() => Store, (store) => store.owner)
-  stores: Store[];
+  ownedStores: Store[];
+
+  @OneToMany(() => Employee, (employee) => employee.user)
+  employments: Employee[];
 }

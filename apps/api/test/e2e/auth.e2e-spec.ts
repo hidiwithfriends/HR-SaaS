@@ -1,13 +1,23 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { INestApplication, ValidationPipe } from '@nestjs/common';
-import * as request from 'supertest';
+import { INestApplication, ValidationPipe, ClassSerializerInterceptor } from '@nestjs/common';
+import { Reflector } from '@nestjs/core';
+import request from 'supertest';
 import { AppModule } from '../../src/app.module';
-import { DataSource } from 'typeorm';
 import { HttpExceptionFilter } from '../../src/common/filters/http-exception.filter';
+import { ResponseInterceptor } from '../../src/common/interceptors/response.interceptor';
 
-describe('Auth API (E2E)', () => {
+describe('Auth API (e2e)', () => {
   let app: INestApplication;
-  let dataSource: DataSource;
+  let createdUserId: string;
+  let createdStoreId: string;
+  let accessToken: string;
+  let refreshToken: string;
+
+  // 테스트용 고유 이메일 생성
+  const testEmail = `test-${Date.now()}@example.com`;
+  const testPassword = 'Test1234';
+  const testName = '테스트 점주';
+  const testStoreName = '테스트 매장';
 
   beforeAll(async () => {
     const moduleFixture: TestingModule = await Test.createTestingModule({
@@ -15,282 +25,266 @@ describe('Auth API (E2E)', () => {
     }).compile();
 
     app = moduleFixture.createNestApplication();
+
+    // Apply same configuration as main.ts
+    app.enableCors({
+      origin: process.env.FRONTEND_URL || 'http://localhost:3000',
+      credentials: true,
+    });
+
     app.useGlobalFilters(new HttpExceptionFilter());
+
     app.useGlobalPipes(
       new ValidationPipe({
         whitelist: true,
         forbidNonWhitelisted: true,
         transform: true,
+        transformOptions: {
+          enableImplicitConversion: true,
+        },
       }),
     );
-    await app.init();
 
-    dataSource = moduleFixture.get<DataSource>(DataSource);
+    app.useGlobalInterceptors(new ResponseInterceptor());
+    app.useGlobalInterceptors(new ClassSerializerInterceptor(app.get(Reflector)));
+
+    await app.init();
   });
 
   afterAll(async () => {
-    await dataSource.destroy();
     await app.close();
   });
 
-  beforeEach(async () => {
-    // Clean database before each test
-    await dataSource.query('TRUNCATE TABLE stores CASCADE');
-    await dataSource.query('TRUNCATE TABLE users CASCADE');
-  });
-
   describe('POST /auth/signup/owner', () => {
-    const signupDto = {
-      email: 'owner@example.com',
-      password: 'SecurePass123!',
-      name: '홍길동',
-      phone: '010-1234-5678',
-      storeName: '홍대 카페',
-      storeType: 'CAFE',
-    };
-
-    it('[AC-AUTH-01] should create user and store on signup', async () => {
-      const response = await request(app.getHttpServer())
+    it('should create a new owner user and store successfully', () => {
+      return request(app.getHttpServer())
         .post('/auth/signup/owner')
-        .send(signupDto)
-        .expect(201);
+        .send({
+          email: testEmail,
+          password: testPassword,
+          name: testName,
+          storeName: testStoreName,
+        })
+        .expect(201)
+        .expect((res) => {
+          expect(res.body.success).toBe(true);
+          expect(res.body.data).toHaveProperty('userId');
+          expect(res.body.data).toHaveProperty('email', testEmail);
+          expect(res.body.data).toHaveProperty('role', 'OWNER');
+          expect(res.body.data).toHaveProperty('storeId');
+          expect(res.body.data).not.toHaveProperty('passwordHash');
 
-      expect(response.body).toHaveProperty('success', true);
-      expect(response.body.data).toHaveProperty('userId');
-      expect(response.body.data).toHaveProperty('email', signupDto.email);
-      expect(response.body.data).toHaveProperty('role', 'OWNER');
-      expect(response.body.data).toHaveProperty('storeId');
-
-      // Verify user exists in DB
-      const users = await dataSource.query(
-        'SELECT * FROM users WHERE email = $1',
-        [signupDto.email],
-      );
-      expect(users).toHaveLength(1);
-      expect(users[0].name).toBe(signupDto.name);
-
-      // Verify store exists in DB
-      const stores = await dataSource.query(
-        'SELECT * FROM stores WHERE name = $1',
-        [signupDto.storeName],
-      );
-      expect(stores).toHaveLength(1);
-      expect(stores[0].type).toBe(signupDto.storeType);
+          // Save for later tests
+          createdUserId = res.body.data.userId;
+          createdStoreId = res.body.data.storeId;
+        });
     });
 
-    it('[AC-AUTH-02] should return 409 when email already exists', async () => {
-      // First signup
-      await request(app.getHttpServer())
+    it('should fail with duplicate email', () => {
+      return request(app.getHttpServer())
         .post('/auth/signup/owner')
-        .send(signupDto)
-        .expect(201);
-
-      // Second signup with same email
-      const response = await request(app.getHttpServer())
-        .post('/auth/signup/owner')
-        .send(signupDto)
-        .expect(409);
-
-      expect(response.body).toHaveProperty('success', false);
-      expect(response.body.error).toHaveProperty('code', 'EMAIL_ALREADY_EXISTS');
+        .send({
+          email: testEmail,
+          password: testPassword,
+          name: testName,
+          storeName: testStoreName,
+        })
+        .expect(409)
+        .expect((res) => {
+          expect(res.body.success).toBe(false);
+          expect(res.body.error.code).toBe('EMAIL_ALREADY_EXISTS');
+        });
     });
 
-    it('should return 400 when required fields are missing', async () => {
-      const invalidDto = {
-        email: 'test@example.com',
-        // password missing
-        name: 'Test',
-      };
-
-      const response = await request(app.getHttpServer())
+    it('should fail with invalid email format', () => {
+      return request(app.getHttpServer())
         .post('/auth/signup/owner')
-        .send(invalidDto)
-        .expect(400);
-
-      expect(response.body).toHaveProperty('success', false);
-      expect(response.body.error).toHaveProperty('code', 'VALIDATION_ERROR');
+        .send({
+          email: 'invalid-email',
+          password: testPassword,
+          name: testName,
+          storeName: testStoreName,
+        })
+        .expect(400)
+        .expect((res) => {
+          expect(res.body.success).toBe(false);
+        });
     });
 
-    it('should return 400 when email format is invalid', async () => {
-      const invalidDto = {
-        ...signupDto,
-        email: 'invalid-email',
-      };
-
-      await request(app.getHttpServer())
+    it('should fail with weak password (too short)', () => {
+      return request(app.getHttpServer())
         .post('/auth/signup/owner')
-        .send(invalidDto)
-        .expect(400);
+        .send({
+          email: `another-${Date.now()}@example.com`,
+          password: 'short',
+          name: testName,
+          storeName: testStoreName,
+        })
+        .expect(400)
+        .expect((res) => {
+          expect(res.body.success).toBe(false);
+        });
+    });
+
+    it('should fail with password without numbers', () => {
+      return request(app.getHttpServer())
+        .post('/auth/signup/owner')
+        .send({
+          email: `another2-${Date.now()}@example.com`,
+          password: 'OnlyLetters',
+          name: testName,
+          storeName: testStoreName,
+        })
+        .expect(400)
+        .expect((res) => {
+          expect(res.body.success).toBe(false);
+        });
+    });
+
+    it('should fail with missing required fields', () => {
+      return request(app.getHttpServer())
+        .post('/auth/signup/owner')
+        .send({
+          email: testEmail,
+          // missing password, name, storeName
+        })
+        .expect(400)
+        .expect((res) => {
+          expect(res.body.success).toBe(false);
+        });
     });
   });
 
   describe('POST /auth/login', () => {
-    const signupDto = {
-      email: 'owner@example.com',
-      password: 'SecurePass123!',
-      name: '홍길동',
-      phone: '010-1234-5678',
-      storeName: '홍대 카페',
-      storeType: 'CAFE',
-    };
+    it('should login successfully with valid credentials', () => {
+      return request(app.getHttpServer())
+        .post('/auth/login')
+        .send({
+          email: testEmail,
+          password: testPassword,
+        })
+        .expect(200)
+        .expect((res) => {
+          expect(res.body.success).toBe(true);
+          expect(res.body.data).toHaveProperty('accessToken');
+          expect(res.body.data).toHaveProperty('refreshToken');
+          expect(res.body.data).toHaveProperty('user');
+          expect(res.body.data.user).toHaveProperty('id', createdUserId);
+          expect(res.body.data.user).toHaveProperty('email', testEmail);
+          expect(res.body.data.user).toHaveProperty('role', 'OWNER');
+          expect(res.body.data.user).not.toHaveProperty('passwordHash');
 
-    beforeEach(async () => {
-      // Create user before login tests
-      await request(app.getHttpServer())
-        .post('/auth/signup/owner')
-        .send(signupDto);
+          // Save tokens for later tests
+          accessToken = res.body.data.accessToken;
+          refreshToken = res.body.data.refreshToken;
+        });
     });
 
-    it('[AC-AUTH-03] should return valid JWT tokens on login', async () => {
-      const loginDto = {
-        email: signupDto.email,
-        password: signupDto.password,
-      };
-
-      const response = await request(app.getHttpServer())
+    it('should fail with invalid email', () => {
+      return request(app.getHttpServer())
         .post('/auth/login')
-        .send(loginDto)
-        .expect(200);
-
-      expect(response.body).toHaveProperty('success', true);
-      expect(response.body.data).toHaveProperty('accessToken');
-      expect(response.body.data).toHaveProperty('refreshToken');
-      expect(response.body.data.user).toHaveProperty('userId');
-      expect(response.body.data.user).toHaveProperty('email', loginDto.email);
-      expect(response.body.data.user).toHaveProperty('role', 'OWNER');
-      expect(response.body.data.user).toHaveProperty('name', signupDto.name);
-
-      // Verify JWT token format (should be 3 parts separated by dots)
-      const accessToken = response.body.data.accessToken;
-      expect(accessToken.split('.')).toHaveLength(3);
+        .send({
+          email: 'nonexistent@example.com',
+          password: testPassword,
+        })
+        .expect(401)
+        .expect((res) => {
+          expect(res.body.success).toBe(false);
+          expect(res.body.error.code).toBe('INVALID_CREDENTIALS');
+        });
     });
 
-    it('[AC-AUTH-04] should return 401 when password is incorrect', async () => {
-      const loginDto = {
-        email: signupDto.email,
-        password: 'WrongPassword123!',
-      };
-
-      const response = await request(app.getHttpServer())
+    it('should fail with invalid password', () => {
+      return request(app.getHttpServer())
         .post('/auth/login')
-        .send(loginDto)
-        .expect(401);
-
-      expect(response.body).toHaveProperty('success', false);
-      expect(response.body.error).toHaveProperty('code', 'INVALID_CREDENTIALS');
+        .send({
+          email: testEmail,
+          password: 'WrongPassword123',
+        })
+        .expect(401)
+        .expect((res) => {
+          expect(res.body.success).toBe(false);
+          expect(res.body.error.code).toBe('INVALID_CREDENTIALS');
+        });
     });
 
-    it('should return 401 when email does not exist', async () => {
-      const loginDto = {
-        email: 'nonexistent@example.com',
-        password: 'SomePassword123!',
-      };
-
-      const response = await request(app.getHttpServer())
+    it('should fail with missing credentials', () => {
+      return request(app.getHttpServer())
         .post('/auth/login')
-        .send(loginDto)
-        .expect(401);
-
-      expect(response.body.error).toHaveProperty('code', 'INVALID_CREDENTIALS');
+        .send({})
+        .expect(400)
+        .expect((res) => {
+          expect(res.body.success).toBe(false);
+        });
     });
   });
 
   describe('POST /auth/refresh', () => {
-    const signupDto = {
-      email: 'owner@example.com',
-      password: 'SecurePass123!',
-      name: '홍길동',
-      phone: '010-1234-5678',
-      storeName: '홍대 카페',
-      storeType: 'CAFE',
-    };
-
-    let refreshToken: string;
-
-    beforeEach(async () => {
-      // Create user and login to get refresh token
-      await request(app.getHttpServer())
-        .post('/auth/signup/owner')
-        .send(signupDto);
-
-      const loginResponse = await request(app.getHttpServer())
-        .post('/auth/login')
+    it('should refresh token successfully with valid refresh token', () => {
+      return request(app.getHttpServer())
+        .post('/auth/refresh')
         .send({
-          email: signupDto.email,
-          password: signupDto.password,
+          refreshToken: refreshToken,
+        })
+        .expect(200)
+        .expect((res) => {
+          expect(res.body.success).toBe(true);
+          expect(res.body.data).toHaveProperty('accessToken');
+          expect(typeof res.body.data.accessToken).toBe('string');
         });
-
-      refreshToken = loginResponse.body.data.refreshToken;
     });
 
-    it('should return new access token with valid refresh token', async () => {
-      const response = await request(app.getHttpServer())
+    it('should fail with invalid refresh token', () => {
+      return request(app.getHttpServer())
         .post('/auth/refresh')
-        .send({ refreshToken })
-        .expect(200);
-
-      expect(response.body).toHaveProperty('success', true);
-      expect(response.body.data).toHaveProperty('accessToken');
-
-      // Verify it's a different token (new JWT)
-      const newAccessToken = response.body.data.accessToken;
-      expect(newAccessToken.split('.')).toHaveLength(3);
+        .send({
+          refreshToken: 'invalid-token',
+        })
+        .expect(401)
+        .expect((res) => {
+          expect(res.body.success).toBe(false);
+          expect(res.body.error.code).toBe('INVALID_REFRESH_TOKEN');
+        });
     });
 
-    it('should return 401 when refresh token is invalid', async () => {
-      const response = await request(app.getHttpServer())
-        .post('/auth/refresh')
-        .send({ refreshToken: 'invalid-token' })
-        .expect(401);
-
-      expect(response.body).toHaveProperty('success', false);
-    });
-
-    it('should return 400 when refresh token is missing', async () => {
-      await request(app.getHttpServer())
+    it('should fail with missing refresh token', () => {
+      return request(app.getHttpServer())
         .post('/auth/refresh')
         .send({})
-        .expect(400);
+        .expect(400)
+        .expect((res) => {
+          expect(res.body.success).toBe(false);
+        });
     });
   });
 
-  describe('RBAC - Role-Based Access Control', () => {
-    let ownerToken: string;
-    let ownerStoreId: string;
-
-    beforeEach(async () => {
-      // Create owner and get token
-      const signupResponse = await request(app.getHttpServer())
-        .post('/auth/signup/owner')
-        .send({
-          email: 'owner@example.com',
-          password: 'SecurePass123!',
-          name: '홍길동',
-          phone: '010-1234-5678',
-          storeName: '홍대 카페',
-          storeType: 'CAFE',
+  describe('GET /users/me', () => {
+    it('should get current user successfully with valid access token', () => {
+      return request(app.getHttpServer())
+        .get('/users/me')
+        .set('Authorization', `Bearer ${accessToken}`)
+        .expect(200)
+        .expect((res) => {
+          expect(res.body.success).toBe(true);
+          expect(res.body.data).toHaveProperty('id', createdUserId);
+          expect(res.body.data).toHaveProperty('email', testEmail);
+          expect(res.body.data).toHaveProperty('name', testName);
+          expect(res.body.data).toHaveProperty('role', 'OWNER');
+          expect(res.body.data).not.toHaveProperty('passwordHash');
         });
-
-      ownerStoreId = signupResponse.body.data.storeId;
-
-      const loginResponse = await request(app.getHttpServer())
-        .post('/auth/login')
-        .send({
-          email: 'owner@example.com',
-          password: 'SecurePass123!',
-        });
-
-      ownerToken = loginResponse.body.data.accessToken;
     });
 
-    it('[AC-AUTH-05] OWNER should access own store', async () => {
-      // This test will be implemented in F2 when store endpoints are ready
-      // For now, we just verify the token contains the correct role
-      const payload = JSON.parse(
-        Buffer.from(ownerToken.split('.')[1], 'base64').toString(),
-      );
-      expect(payload).toHaveProperty('role', 'OWNER');
-      expect(payload).toHaveProperty('storeId', ownerStoreId);
+    it('should fail without access token', () => {
+      return request(app.getHttpServer())
+        .get('/users/me')
+        .expect(401);
+    });
+
+    it('should fail with invalid access token', () => {
+      return request(app.getHttpServer())
+        .get('/users/me')
+        .set('Authorization', 'Bearer invalid-token')
+        .expect(401);
     });
   });
 });

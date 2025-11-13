@@ -1,33 +1,37 @@
-import { NestFactory } from '@nestjs/core';
-import { ValidationPipe } from '@nestjs/common';
+import { NestFactory, Reflector } from '@nestjs/core';
+import { ValidationPipe, ClassSerializerInterceptor } from '@nestjs/common';
 import { AppModule } from './app.module';
 import { HttpExceptionFilter } from './common/filters/http-exception.filter';
+import { ResponseInterceptor } from './common/interceptors/response.interceptor';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
-  // Global exception filter
+  // Enable CORS
+  app.enableCors({
+    origin: process.env.FRONTEND_URL || 'http://localhost:3000',
+    credentials: true,
+  });
+
+  // Global Exception Filter
   app.useGlobalFilters(new HttpExceptionFilter());
 
-  // Global validation pipe
+  // Global Validation Pipe
   app.useGlobalPipes(
     new ValidationPipe({
       whitelist: true,
       forbidNonWhitelisted: true,
       transform: true,
+      transformOptions: {
+        enableImplicitConversion: true,
+      },
     }),
   );
 
-  // CORS
-  app.enableCors({
-    origin: process.env.CORS_ORIGIN || 'http://localhost:3001',
-    credentials: true,
-  });
+  // Global Interceptors
+  app.useGlobalInterceptors(new ResponseInterceptor());
+  app.useGlobalInterceptors(new ClassSerializerInterceptor(app.get(Reflector)));
 
-  const port = process.env.PORT || 3000;
-  await app.listen(port);
-
-  console.log(`🚀 API Server running on http://localhost:${port}`);
+  await app.listen(process.env.PORT ?? 3000);
 }
-
 bootstrap();

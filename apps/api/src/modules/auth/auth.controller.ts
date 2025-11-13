@@ -6,22 +6,23 @@ import { RefreshTokenDto } from './dto/refresh-token.dto';
 
 @Controller('auth')
 export class AuthController {
-  constructor(private authService: AuthService) {}
+  constructor(private readonly authService: AuthService) {}
 
   @Post('signup/owner')
-  async signupOwner(@Body() signupDto: SignupOwnerDto) {
-    return this.authService.signupOwner(signupDto);
+  @HttpCode(HttpStatus.CREATED)
+  async signupOwner(@Body() dto: SignupOwnerDto) {
+    return await this.authService.signupOwner(dto);
   }
 
   @Post('login')
   @HttpCode(HttpStatus.OK)
-  async login(@Body() loginDto: LoginDto) {
-    return this.authService.login(loginDto);
+  async login(@Body() dto: LoginDto) {
+    return await this.authService.login(dto);
   }
 
   @Post('refresh')
   @HttpCode(HttpStatus.OK)
-  async refresh(@Body() refreshTokenDto: RefreshTokenDto) {
-    return this.authService.refreshToken(refreshTokenDto.refreshToken);
+  async refresh(@Body() dto: RefreshTokenDto) {
+    return await this.authService.refreshToken(dto);
   }
 }

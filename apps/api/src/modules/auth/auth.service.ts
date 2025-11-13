@@ -1,195 +1,141 @@
-import {
-  Injectable,
-  ConflictException,
-  UnauthorizedException,
-  BadRequestException,
-} from '@nestjs/common';
+import { Injectable, ConflictException, UnauthorizedException } from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository, DataSource } from 'typeorm';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
+import * as bcrypt from 'bcrypt';
+import { User } from '../../entities/user.entity';
+import { Store } from '../../entities/store.entity';
 import { UsersService } from '../users/users.service';
-import { StoresService } from '../stores/stores.service';
 import { SignupOwnerDto } from './dto/signup-owner.dto';
 import { LoginDto } from './dto/login.dto';
-import { UserRole } from '../../entities/user.entity';
-import { DataSource } from 'typeorm';
+import { RefreshTokenDto } from './dto/refresh-token.dto';
+import { AuthResponseDto, UserResponseDto } from './dto/auth-response.dto';
+import { JwtPayload } from './interfaces/jwt-payload.interface';
+import { UserRole, StoreType } from '../../common/enums';
 
 @Injectable()
 export class AuthService {
   constructor(
-    private usersService: UsersService,
-    private storesService: StoresService,
-    private jwtService: JwtService,
-    private configService: ConfigService,
-    private dataSource: DataSource,
+    @InjectRepository(User)
+    private readonly usersRepository: Repository<User>,
+    @InjectRepository(Store)
+    private readonly storesRepository: Repository<Store>,
+    private readonly usersService: UsersService,
+    private readonly jwtService: JwtService,
+    private readonly configService: ConfigService,
+    private readonly dataSource: DataSource,
   ) {}
 
-  async signupOwner(signupDto: SignupOwnerDto) {
+  async signupOwner(dto: SignupOwnerDto): Promise<{
+    userId: string;
+    email: string;
+    role: UserRole;
+    storeId: string;
+  }> {
     // Check if email already exists
-    const existingUser = await this.usersService.findByEmail(signupDto.email);
+    const existingUser = await this.usersService.findByEmail(dto.email);
     if (existingUser) {
       throw new ConflictException({
-        success: false,
-        error: {
-          code: 'EMAIL_ALREADY_EXISTS',
-          message: 'Email already exists',
-        },
+        code: 'EMAIL_ALREADY_EXISTS',
+        message: '이미 등록된 이메일입니다',
       });
     }
 
-    // Create user and store in transaction
-    const queryRunner = this.dataSource.createQueryRunner();
-    await queryRunner.connect();
-    await queryRunner.startTransaction();
-
-    try {
-      // Create user
-      const user = await this.usersService.create({
-        email: signupDto.email,
-        password: signupDto.password,
-        name: signupDto.name,
-        phone: signupDto.phone,
+    // Transaction: Create User + Store atomically
+    return await this.dataSource.transaction(async (manager) => {
+      // 1. Create user with role=OWNER
+      const passwordHash = await bcrypt.hash(dto.password, 12);
+      const user = manager.create(User, {
+        email: dto.email,
+        passwordHash,
+        name: dto.name,
         role: UserRole.OWNER,
       });
+      await manager.save(user);
 
-      // Create store
-      const store = await this.storesService.create({
+      // 2. Create store owned by user
+      const store = manager.create(Store, {
         ownerId: user.id,
-        name: signupDto.storeName,
-        type: signupDto.storeType,
+        name: dto.storeName,
+        type: StoreType.CAFE, // Default type
       });
-
-      await queryRunner.commitTransaction();
+      await manager.save(store);
 
       return {
-        success: true,
-        data: {
-          userId: user.id,
-          email: user.email,
-          role: user.role,
-          storeId: store.id,
-        },
+        userId: user.id,
+        email: user.email,
+        role: user.role,
+        storeId: store.id,
       };
-    } catch (error) {
-      await queryRunner.rollbackTransaction();
-      throw error;
-    } finally {
-      await queryRunner.release();
-    }
+    });
   }
 
-  async login(loginDto: LoginDto) {
-    // Find user
-    const user = await this.usersService.findByEmail(loginDto.email);
+  async login(dto: LoginDto): Promise<AuthResponseDto> {
+    // Validate credentials
+    const user = await this.usersService.validateCredentials(dto.email, dto.password);
+
     if (!user) {
       throw new UnauthorizedException({
-        success: false,
-        error: {
-          code: 'INVALID_CREDENTIALS',
-          message: 'Invalid email or password',
-        },
+        code: 'INVALID_CREDENTIALS',
+        message: '이메일 또는 비밀번호가 잘못되었습니다',
       });
-    }
-
-    // Validate password
-    const isPasswordValid = await this.usersService.validatePassword(
-      user,
-      loginDto.password,
-    );
-    if (!isPasswordValid) {
-      throw new UnauthorizedException({
-        success: false,
-        error: {
-          code: 'INVALID_CREDENTIALS',
-          message: 'Invalid email or password',
-        },
-      });
-    }
-
-    // Get user's store (for OWNER role)
-    let storeId: string | undefined;
-    if (user.role === UserRole.OWNER && user.stores && user.stores.length > 0) {
-      storeId = user.stores[0].id;
     }
 
     // Generate tokens
-    const accessToken = this.generateAccessToken(user.id, user.role, storeId);
-    const refreshToken = this.generateRefreshToken(user.id);
+    const payload: JwtPayload = {
+      sub: user.id,
+      email: user.email,
+      role: user.role,
+    };
+
+    const accessToken = this.jwtService.sign(payload);
+    const refreshSecret = this.configService.get<string>('JWT_REFRESH_SECRET');
+    const refreshExpiresIn = this.configService.get<string>('JWT_REFRESH_EXPIRES_IN') || '7d';
+    if (!refreshSecret) {
+      throw new Error('JWT_REFRESH_SECRET is not defined in environment variables');
+    }
+    const refreshToken = this.jwtService.sign(payload, {
+      secret: refreshSecret,
+      expiresIn: refreshExpiresIn as any,
+    });
 
     return {
-      success: true,
-      data: {
-        accessToken,
-        refreshToken,
-        user: {
-          userId: user.id,
-          email: user.email,
-          role: user.role,
-          name: user.name,
-        },
-      },
+      accessToken,
+      refreshToken,
+      user: new UserResponseDto(user),
     };
   }
 
-  async refreshToken(refreshToken: string) {
+  async refreshToken(dto: RefreshTokenDto): Promise<{ accessToken: string }> {
     try {
-      const payload = this.jwtService.verify(refreshToken, {
-        secret: this.configService.get<string>('JWT_SECRET'),
+      // Verify refresh token
+      const payload = this.jwtService.verify(dto.refreshToken, {
+        secret: this.configService.get<string>('JWT_REFRESH_SECRET'),
       });
 
-      const user = await this.usersService.findById(payload.userId);
-      if (!user) {
-        throw new UnauthorizedException();
-      }
-
-      // Get user's store (for OWNER role)
-      let storeId: string | undefined;
-      if (
-        user.role === UserRole.OWNER &&
-        user.stores &&
-        user.stores.length > 0
-      ) {
-        storeId = user.stores[0].id;
-      }
-
-      const accessToken = this.generateAccessToken(
-        user.id,
-        user.role,
-        storeId,
-      );
-
-      return {
-        success: true,
-        data: {
-          accessToken,
-        },
+      // Generate new access token
+      const newPayload: JwtPayload = {
+        sub: payload.sub,
+        email: payload.email,
+        role: payload.role,
       };
+
+      const accessToken = this.jwtService.sign(newPayload);
+      return { accessToken };
     } catch (error) {
       throw new UnauthorizedException({
-        success: false,
-        error: {
-          code: 'INVALID_TOKEN',
-          message: 'Invalid refresh token',
-        },
+        code: 'INVALID_REFRESH_TOKEN',
+        message: '유효하지 않은 토큰입니다',
       });
     }
   }
 
-  private generateAccessToken(
-    userId: string,
-    role: UserRole,
-    storeId?: string,
-  ): string {
-    const payload = { userId, role, storeId };
-    return this.jwtService.sign(payload, {
-      expiresIn: this.configService.get<string>('JWT_EXPIRATION') || '24h',
-    });
-  }
-
-  private generateRefreshToken(userId: string): string {
-    const payload = { userId };
-    return this.jwtService.sign(payload, {
-      expiresIn:
-        this.configService.get<string>('JWT_REFRESH_EXPIRATION') || '30d',
-    });
+  async validateUser(userId: string): Promise<User> {
+    const user = await this.usersService.findById(userId);
+    if (!user) {
+      throw new UnauthorizedException('UNAUTHORIZED');
+    }
+    return user;
   }
 }

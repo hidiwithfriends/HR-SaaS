@@ -23,6 +23,8 @@ description: >
 6. `docs/tech/db-schema.md`
 7. `docs/ux/ux-flow-main.md`
 8. `docs/ux/ui-theme.md`
+9. `docs/project/roadmap.md`
+10. `docs/project/phase-*-plan.md`
 
 이 스킬은 **사업계획서 원문을 사람이 다시 요약/정리하지 않아도**  
 해당 내용을 기반으로 위 문서들을 v0.1 상태까지 자동으로 도출하는 것을 목표로 한다.
@@ -61,11 +63,30 @@ description: >
     --- FILE: docs/ux/ui-theme.md
     (브랜드 키워드, 컬러/타이포/톤 가이드)
 
+    --- FILE: docs/project/roadmap.md
+    (전체 Phase 개요)
+
+이후, 사업계획서 또는 로드맵에서 발견한 Phase의 수만큼
+다음과 같은 블록을 반복해서 출력한다.
+
+    --- FILE: docs/project/phase<PHASE_INDEX>-plan.md
+    (여기에 해당 Phase 계획 내용)
+
 규칙:
+
 
 - `--- FILE: <경로>` 줄 바로 아래부터 해당 파일의 Markdown 내용을 쓴다.
 - 각 파일 블록 사이에는 빈 줄을 최소 한 줄 이상 넣는다.
 - 경로는 이 레포지토리의 루트 기준 상대 경로로 쓴다.
+
+- <PHASE_INDEX>는 1부터 시작하는 숫자 (1, 2, 3, …)
+- 예: Phase가 4개라면
+  - docs/project/phase1-plan.md
+  - docs/project/phase2-plan.md
+  - docs/project/phase3-plan.md
+  - docs/project/phase4-plan.md
+  네 개의 FILE 블록을 추가로 생성한다.
+
 
 ## 각 파일에 기대하는 내용 (요약 가이드)
 
@@ -115,6 +136,39 @@ description: >
        - 카드/버튼/입력창의 모서리 둥근 정도, 여백, 그림자 세기 등
   - 이 문서는 디자이너와 프론트엔드 개발자가 **같은 분위기로 화면을 만들 수 있게 하는 기준**을 제공해야 한다.
 
+- **docs/project/roadmap.md**
+  - 사업계획서 내 로드맵/단계/기간 관련 내용을 모아,
+    Phase 1~N까지의 개요를 정리한다.
+  - 각 Phase는 ID(1,2,3…), 이름, 기간, 목표를 가진다.
+
+- **docs/project/phase<N>-plan.md**
+  - Phase N에 포함될 주요 기능(Feature)들을 나열한다.
+  - 헤더 형식 예:
+    - `## F1: 인증 & 유저 관리 (2.4주) [status: todo]`
+    - `## F2: 매장 & 직원 관리 (2.1주) [status: todo]`
+  - 각 Feature는 4단계 구현 절차를 따른다:
+    **Step 1: UX Planning & Design** (~X일)
+    - UX 플로우 정의
+    - 화면 와이어프레임 작성
+    - AC 매핑
+
+    **Step 2: Frontend Prototype with Mock** (~X일)
+    - Mock 데이터 생성
+    - Next.js 페이지/컴포넌트 구현
+    - Playwright E2E 테스트
+
+    **Step 3: Data Layer Design & Migration** (~X일)
+    - TypeORM Entity 작성
+    - Migration 파일 생성
+    - DB 스키마 검증
+
+    **Step 4: Backend API & Integration** (~X일)
+    - NestJS Controller/Service 구현
+    - API E2E 테스트
+    - Frontend Mock → Real API 전환
+  - 초기 생성 시 모든 기능의 status는 `todo`로 설정한다.
+  - Phase 개수는 고정이 아니며,
+    사업계획서/roadmap에서 정의된 Phase 개수만큼 파일을 생성한다.
 
 ## 동작 방법 (에이전트 내부 지침)
 

@@ -5,22 +5,12 @@ import {
   CreateDateColumn,
   UpdateDateColumn,
   ManyToOne,
+  OneToMany,
   JoinColumn,
 } from 'typeorm';
+import { StoreType, StoreStatus } from '../common/enums';
 import { User } from './user.entity';
-
-export enum StoreType {
-  CAFE = 'CAFE',
-  RESTAURANT = 'RESTAURANT',
-  RETAIL = 'RETAIL',
-  SALON = 'SALON',
-  OTHER = 'OTHER',
-}
-
-export enum StoreStatus {
-  ACTIVE = 'ACTIVE',
-  INACTIVE = 'INACTIVE',
-}
+import { Employee } from './employee.entity';
 
 @Entity('stores')
 export class Store {
@@ -40,13 +30,13 @@ export class Store {
   type: StoreType;
 
   @Column({ type: 'text', nullable: true })
-  address: string;
+  address: string | null;
 
   @Column({ type: 'decimal', precision: 10, scale: 8, nullable: true })
-  latitude: number;
+  latitude: number | null;
 
   @Column({ type: 'decimal', precision: 11, scale: 8, nullable: true })
-  longitude: number;
+  longitude: number | null;
 
   @Column({ type: 'int', name: 'gps_radius', default: 50 })
   gpsRadius: number;
@@ -65,7 +55,10 @@ export class Store {
   updatedAt: Date;
 
   // Relations
-  @ManyToOne(() => User, (user) => user.stores)
+  @ManyToOne(() => User, (user) => user.ownedStores)
   @JoinColumn({ name: 'owner_id' })
   owner: User;
+
+  @OneToMany(() => Employee, (employee) => employee.store)
+  employees: Employee[];
 }
